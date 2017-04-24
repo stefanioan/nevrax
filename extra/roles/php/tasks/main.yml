@@ -1,0 +1,64 @@
+---
+# tasks file for php
+
+- name: Update apt cache
+  apt: update_cache=yes
+  sudo: yes
+
+- name: Add php5.6 repository
+  sudo: yes
+  apt_repository: repo='deb http://ppa.launchpad.net/ondrej/php/ubuntu xenial main' state=present
+
+- name: Add php5.6 apt signing key
+  sudo: yes
+  apt_key: keyserver=keyserver.ubuntu.com id=E5267A6C  state=present
+
+
+- name: Update apt cache
+  apt: update_cache=yes
+  sudo: yes
+
+- name: Install php extensions
+  apt: name={{ item }} state=present
+  sudo: yes
+  with_items:
+    - php5.6-cli
+    - php5.6-curl
+    - php5.6-fpm
+    - php5.6-gd
+    - php5.6-intl
+    - php5.6-json
+    - php5.6-mbstring
+    - php5.6-mcrypt
+    - php5.6-mysql
+    - php5.6-opcache
+    - php5.6-readline
+    - php5.6-xml
+    - php5.6-xmlrpc
+    - php5.6-mbstring
+    - php5.6-mcrypt
+    - php5.6-xml
+    - php5.6-intl
+    - php5.6-common
+
+- name: Copy php.ini - fpm
+  sudo: yes
+  copy:
+    src: "{{ role_path }}/files/php.ini"
+    dest: /etc/php/5.6/fpm/php.ini
+
+- name: Copy www.conf - fpm
+  sudo: yes
+  copy:
+    src: "{{ role_path }}/files/php-fpm-www.conf"
+    dest: /etc/php/5.6/fpm/pool.d/www.conf
+
+- name: Copy php.ini - cli
+  sudo: yes
+  copy:
+    src: "{{ role_path }}/files/php.ini"
+    dest: /etc/php/5.6/cli/php.ini
+
+- name: restart php-fpm
+  sudo: yes
+  service: name=php5.6-fpm state=restarted

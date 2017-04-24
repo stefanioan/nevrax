@@ -1,0 +1,111 @@
+---
+# tasks file for server
+ 
+- name: drupal_mysql_password
+  local_action: shell echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20)
+  register: drupal_mysql_password
+
+- name: civicrm_mysql_password
+  local_action: shell echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20)
+  register: civicrm_mysql_password
+
+- name: mysql_root_password
+  local_action: shell echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20)
+  register: mysql_root_password
+
+
+
+- name: Update apt cache
+  apt: update_cache=yes cache_valid_time=3600
+  sudo: yes
+ 
+- name: Add Percona apt signing key
+  sudo: yes
+  apt_key: keyserver=keys.gnupg.net id=8507EFA5 state=present
+ 
+- name: Add Percona repository
+  sudo: yes
+  apt_repository: repo='deb http://repo.percona.com/apt xenial main' state=present
+ 
+- name: Add Percona source repository
+  sudo: yes
+  apt_repository: repo='deb-src http://repo.percona.com/apt xenial main' state=present
+ 
+- name: Update apt
+  sudo: yes
+  raw: apt-get update
+ 
+- name: Install Percona packages
+  sudo: yes
+  apt: pkg={{ item }} state=present update_cache=yes allow_unauthenticated=yes
+  with_items:
+    - percona-server-client-5.7
+    - percona-server-server-5.7
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+
+- name: Create mysql database for drupal
+  sudo: yes
+  mysql_db: name={{ drupal_mysql_db }} collation=utf8_general_ci state=present
+
+- name: Create mysql database for civicrm
+  sudo: yes
+  mysql_db: name={{ civicrm_mysql_db }} collation=utf8_general_ci state=present
+
+
+- name: Create mysql user for drupal
+  sudo: yes
+  mysql_user:
+    name={{ drupal_mysql_user }}
+    password={{ drupal_mysql_password.stdout }}
+    state=present
+    append_privs=yes
+    priv={{ item }}
+  with_items:
+   - '{{ drupal_mysql_db }}.*:ALL'
+   - '{{ civicrm_mysql_db }}.*:SELECT'
+
+- name: Create mysql user for civicrm
+  sudo: yes
+  mysql_user:
+    name={{ civicrm_mysql_user }}
+    password={{ civicrm_mysql_password.stdout }}
+    state=present
+    priv={{ civicrm_mysql_db }}.*:ALL
+
+
+- name: Update mysql root password for all root accounts
+  sudo: yes
+  mysql_user: name=root host={{ item }} password={{ mysql_root_password.stdout }}
+  with_items:
+    - "{{ ansible_hostname }}"
+    - 127.0.0.1
+    - ::1
+    - localhost
+
+- name: Copy the mysql credentials as .my.cnf file
+  sudo: yes
+  template: src=root_.my.cnf dest=~/.my.cnf mode=0600
+
+- name: Copy the mysql config
+  sudo: yes
+  template: src=etc_my.cnf dest=/etc/mysql/my.cnf
+
+- name: restart mysql
+  sudo: yes
+  service: name=mysql state=restarted
+
+
+- name: Copy civicrm.settings.php
+  sudo: yes
+  template: src=civicrm.settings.php dest=~/civicrm.settings.php mode=600
+
+- name: Copy settings.php
+  sudo: yes
+  template: src=settings.php dest=~/settings.php mode=600
+
+
+
+
+

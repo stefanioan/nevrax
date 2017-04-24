@@ -1,0 +1,63 @@
+---
+# tasks file for server
+ 
+- name: Update apt cache
+  apt: update_cache=yes cache_valid_time=3600
+  sudo: yes
+ 
+- name: Install required software
+  apt: name={{ item }} state=present
+  sudo: yes
+  with_items:
+    - libcurl3
+    - libmcrypt4
+    - libxmlrpc-epi0
+    - libmemcached11
+    - libmhash2
+    - mcrypt
+    - libmcrypt-dev
+    - vim
+    - mc
+    - htop
+    - screen
+    - git
+    - zip
+    - python-pycurl
+    - python-mysqldb
+    - python-mysqldb
+    - pcre2-utils
+
+- name: install pexpect
+  sudo: yes
+  easy_install:
+    name: pexpect
+
+- name: Set authorized key took from file
+  sudo: yes
+  authorized_key:
+    user: ubuntu
+    state: present
+    key: "{{ lookup('file', '{{ role_path }}/files/id_rsa.pub') }}"
+
+- name: set hostname
+  sudo: yes
+  hostname:
+    name: "{{ inventory_hostname }}"
+  register: hostname_status
+  when: ansible_hostname != "{{ inventory_hostname }}"
+
+
+- name: Set Postfix option type as internet site
+  sudo: yes
+  debconf: name=postfix question="postfix/main_mailer_type" value="'Internet Site'" vtype="string"
+
+- name: Set Postfix option hostname
+  sudo: yes
+  debconf: name=postifx question="postfix/mailname" value="{{ansible_fqdn}}" vtype="string"
+
+- name: Install Postfix
+  sudo: yes
+  apt: package={{ item }} state=installed force=yes update_cache=yes cache_valid_time=3600
+  with_items:
+     - postfix
+     - mailutils

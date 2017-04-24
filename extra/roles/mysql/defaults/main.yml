@@ -1,0 +1,7 @@
+---
+# defaults file for mysql
+drupal_mysql_db: drupal_db
+drupal_mysql_user: drupal_user
+civicrm_mysql_db: civicrm_db
+civicrm_mysql_user: civicrm_user
+

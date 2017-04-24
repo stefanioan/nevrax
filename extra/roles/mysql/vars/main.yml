@@ -1,0 +1,10 @@
+---
+# defaults file for mysql
+#- name drupal_mysql_password
+local_action: shell echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20)
+register: drupal_mysql_password
+
+#- name others
+#civicrm_mysql_password: '{{ echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20) }}'
+#mysql_root_password: '{{ echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20) }}'
+

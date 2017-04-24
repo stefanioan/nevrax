@@ -1,0 +1,118 @@
+---
+# tasks file for nginx
+ 
+- name: Update apt cache
+  apt: update_cache=yes cache_valid_time=3600
+  sudo: yes
+ 
+- name: Install required software
+  apt: name={{ item }} state=present
+  sudo: yes
+  with_items:
+    - nginx-extras
+    - libcurl3
+    - libmcrypt4
+    - libxmlrpc-epi0
+    - libmemcached11
+    - libmhash2
+    - mcrypt
+    - libmcrypt-dev
+    - letsencrypt
+
+- name: add www-data to group ubuntu
+  sudo: yes 
+  user:
+   name: www-data
+   groups: ubuntu
+   append: yes
+
+#- name: Copy info.php for testing
+#  sudo: yes
+#  template: src=info.php dest=/var/www/html/info.php
+
+- name: Copy nginx conf
+  sudo: yes
+  copy:
+    src: "{{ role_path }}/files/nginx_config.tgz"
+    dest: ~/nginx_config.tgz
+
+- name: Clean nginx path
+  sudo: yes
+  file:
+    state: absent
+    path: "/etc/nginx/"
+
+- name: recreate nginx dir
+  sudo: yes
+  file:
+    path: /etc/nginx
+    state: directory
+    mode: 0755
+
+- name: put new nginx config
+  sudo: yes
+  unarchive:
+    src: ~/nginx_config.tgz
+    dest: /etc/nginx
+    remote_src: true
+
+- name: chown ubuntu /var/www/html
+  sudo: yes
+  file:
+    path: /var/www/html
+    owner: ubuntu
+    group: ubuntu
+    state: directory
+
+#### OK
+- name: install certificate
+  sudo: yes
+  shell: letsencrypt certonly -n --register-unsafely-without-email --webroot -w /var/www/html  --agree-tos -d {{ansible_hostname}}.sitecaretaker.com
+  args:
+    creates: /etc/letsencrypt/live/{{ansible_hostname}}
+####
+#- name: set ssl directory
+#  sudo: yes
+#  file:
+#    path: /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com
+#    state: directory
+
+#- name: create self-signed SSL cert
+#  sudo: yes
+#  command: openssl req -new -nodes -x509 -subj "/C=US/ST=Oregon/L=Portland/O=IT/CN={{ansible_hostname}}.sitecaretaker.com" -days 3650 -keyout /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com/privkey.pem -out /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com/fullchain.pem
+####
+
+- name: set ssl directory
+  sudo: yes
+  file:
+    path: /etc/nginx/ssl
+    state: directory
+
+- name: set ssl links for crt
+  sudo: yes
+  file:
+    src: /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com/fullchain.pem
+    dest: /etc/nginx/ssl/fullchain.pem
+    state: link
+    force: yes
+
+- name: set ssl links for key
+  sudo: yes
+  file:
+    src: /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com/privkey.pem
+    dest: /etc/nginx/ssl/privkey.pem
+    state: link
+    force: yes
+
+#  shell: mkdir /etc/nginx/ssl; ln -s /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com/fullchain.pem /etc/nginx/ssl/fullchain.pem; ln -s /etc/letsencrypt/live/{{ansible_hostname}}.sitecaretaker.com/privkey.pem /etc/nginx/ssl/privkey.pem
+
+- name: Add letsencrypt cronjob for cert renewal
+  sudo: yes
+  cron:
+    name: letsencrypt_renewal
+    special_time: weekly
+    job: letsencrypt --renew certonly -n --webroot -w /var/www/html --register-unsafely-without-email --agree-tos -d {{ ansible_hostname }}.sitecaretaker.com && service nginx reload
+
+- name: restart nginx
+  sudo: yes
+  service: name=nginx state=restarted

@@ -1,0 +1,144 @@
+---
+# tasks file for civicrm
+
+- name: install composer
+  sudo: yes
+  shell: 'curl -sS https://getcomposer.org/installer | php; mv composer.phar /usr/local/bin/composer'
+
+- name: Add composer cronjob for updates
+  sudo: yes
+  cron:
+    name: composer_update
+    special_time: weekly
+    job: /usr/local/bin/composer self-update > /dev/null 2>&1
+
+- name: install drush
+  sudo: yes
+  git:
+    repo: 'https://github.com/drush-ops/drush.git'
+    dest: /usr/local/src/drush
+    version: 8.x
+
+- name: install drush step2
+  sudo: yes
+  shell: cd /usr/local/src/drush; composer install
+
+
+#- name: install drush
+#  sudo: yes
+#  shell: mkdir /usr/local/src/drush; cd /usr/local/src/drush; composer global require drush/drush:8.*
+
+#- name: install drush/config-extra
+#  sudo: yes
+#  shell: cd /usr/local/src/drush; composer global require drush/config-extra
+
+
+- name: set links for drush
+  sudo: yes
+  file:
+    src: /usr/local/src/drush/drush
+    dest: /usr/local/bin/drush
+    state: link
+    force: yes
+
+- name: cleanup
+  sudo: yes
+  file:
+    state: absent
+    path: "/var/www/html"
+
+- name: recreate nginx dir
+  sudo: yes
+  file:
+    path: /var/www/html
+    owner: ubuntu
+    group: ubuntu
+    state: directory
+    mode: 0755
+
+- name: Copy site files
+  copy:
+    src: "{{ role_path }}/files/drupal_civicrm_file.tgz"
+    dest: ~/drupal_civicrm_file.tgz
+
+- name: put files in final directory
+  unarchive:
+    src: ~/drupal_civicrm_file.tgz
+    dest: /var/www/html
+    remote_src: true
+
+- name: Copy civicrm_db
+  sudo: yes
+  copy:
+    src: "{{ role_path }}/files/civicrm_db.sql"
+    dest: ~/civicrm_db.sql
+
+- name: Import civicrm_db.sql
+  sudo: yes
+  mysql_db:
+    state: import
+    name: civicrm_db
+    target: ~/civicrm_db.sql
+
+- name: Copy drupal_db
+  sudo: yes
+  copy:
+    src: "{{ role_path }}/files/drupal_db.sql"
+    dest: ~/drupal_db.sql
+
+- name: Import drupal_db.sql
+  sudo: yes
+  mysql_db:
+    state: import
+    name: drupal_db
+    target: ~/drupal_db.sql
+
+- name: civicrm.settings.php
+  sudo: yes
+  copy:
+    src: ~/civicrm.settings.php
+    dest: /var/www/html/sites/default/civicrm.settings.php
+    owner: ubuntu
+    group: ubuntu
+    remote_src: true
+
+- name: settings.php
+  sudo: yes
+  copy:
+    src: ~/settings.php
+    dest: /var/www/html/sites/default/settings.php
+    owner: ubuntu
+    group: ubuntu
+    mode: 0444
+    remote_src: true
+
+- name: drush - remove old admin
+  command: "drush user-cancel adminhost1 -y  chdir=/var/www/html"
+
+- name: drupal admin new pass
+  local_action: shell echo $(tr -d -c "a-zA-Z0-9" < /dev/urandom | head -c 20)
+  register: drupal_admin_password
+
+- name: drush - add new admin
+  command: "drush ucrt admin --mail=RANDOM@CHANGE-ME.com --password={{ drupal_admin_password.stdout }}  chdir=/var/www/html"
+
+- name: drush - add admin role to the new user
+  command: "drush user-add-role administrator admin  chdir=/var/www/html"
+
+- name: save new admin pass in file
+  local_action: lineinfile
+     dest="../private/clients_instances"
+     line="{{ ansible_hostname }}.sitecaretaker.com  admin:{{ drupal_admin_password.stdout }}"
+
+- name: crons drupal
+  cron:
+    name: "drupal"
+    minute: "45"
+    job: "/usr/bin/wget --no-check-certificate -O - -q -t 1 https://localhost/cron.php?cron_key=vj0gUdgpvlUtAjBpfot2L_WeNYuFXj2C1kOtmZXrDUE >/dev/null 2>&1"
+
+- name: crons civicrm
+  cron:
+    name: "civicrm"
+    minute: "15"
+    job: "/usr/local/bin/drush -r /var/www/html/ civicrm-api job.execute >/dev/null 2>&1"
+

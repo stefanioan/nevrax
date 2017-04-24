@@ -1,0 +1,8 @@
+- hosts: clients
+  gather_facts: yes
+  roles:
+#    - os
+#    - nginx
+#    - php
+#    - mysql
+    - civicrm

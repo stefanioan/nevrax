@@ -1,0 +1,13 @@
+[client]
+user=root
+password={{ mysql_root_password.stdout }}
+
+
+[client1]
+user={{ drupal_mysql_user  }}
+password={{ drupal_mysql_password.stdout }}
+
+[client2]
+user={{ civicrm_mysql_user }}
+password={{ civicrm_mysql_password.stdout }}
+

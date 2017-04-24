@@ -1,0 +1,68 @@
+---
+  - name: Provision an EC2 Instance
+    hosts: local
+    connection: local
+    gather_facts: False
+    tags: provisioning
+    # Necessary Variables for creating/provisioning the EC2 Instance
+    vars:
+      instance_type: t2.micro
+      security_group: ['default','launch-wizard-1']
+      image: ami-3f1bd150
+      region: eu-central-1
+      keypair: auto
+      inst_name: '{{ tag }}'
+      count: 1
+    # Task that will be used to Launch/Create an EC2 Instance
+    tasks:
+      - name: Launch the new EC2 Instance
+        local_action: ec2 
+                      group={{ security_group }} 
+                      instance_type={{ instance_type}} 
+                      image={{ image }}
+                      wait=true 
+                      region={{ region }}
+                      keypair={{ keypair }}
+                      count={{count}}
+                      instance_tags='{"Name":"{{ inst_name }}"}'
+                      user_data="{{ lookup('file', 'start.sh') }}"
+        register: ec2
+
+      - name: Allocating elastic IP to instance
+        ec2_eip:
+          in_vpc: yes
+          reuse_existing_ip_allowed: yes
+          state: present
+          region: eu-central-1
+          instance_id: "{{ ec2.instance_ids[0] }}"
+        register: instance_eip
+
+
+      - name: Add the newly created EC2 instance(s) to the local host group (located inside the directory)
+        local_action: lineinfile 
+                      dest="../private/hosts" 
+                      regexp={{ item.private_ip }} 
+                      insertafter="[clients]" line="{{ inst_name }}.sitecaretaker.com  ansible_ssh_host={{ item.private_ip }}"
+        with_items: "{{ ec2.instances }}"
+
+
+      - name: Wait for SSH to come up
+        local_action: wait_for 
+                      host={{ item.private_ip }} 
+                      port=22 
+                      state=started
+        with_items: "{{ ec2.instances }}"
+
+      - name: Create DNS record
+        shell: 'curl -X POST "https://api.cloudflare.com/client/v4/zones/1d4f88fd91311b75f0477a6a36c5b94d/dns_records" -H "X-Auth-Email: stefan.upt@gmail.com" -H "X-Auth-Key: 8e5e5ecc139049758959905b958c1c980c358" -H "Content-Type: application/json" --data ''{"type":"A","name":"{{ inst_name }}","content":"{{ instance_eip.public_ip }}","ttl":120,"proxied":false}'''
+        with_items: 
+          - "{{ ec2.instances }}"
+          - "{{ instance_eip.public_ip }}"
+
+      - name: Create a s3 bucket for backup
+        s3:
+          bucket: "{{ inst_name }}"
+          mode: create
+          region: "us-east-1"
+        with_items: "{{ ec2.instances }}"
+
