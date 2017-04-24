@@ -27,11 +27,6 @@
     - python-mysqldb
     - pcre2-utils
 
-- name: install pexpect
-  sudo: yes
-  easy_install:
-    name: pexpect
-
 - name: Set authorized key took from file
   sudo: yes
   authorized_key:

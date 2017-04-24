@@ -4,7 +4,7 @@
 # how many machines do you want to generate
 limit=1
 # starting from what number
-start=18
+start=25
 #sample hostname: host18.sitecaretaker.com
 
 
@@ -26,3 +26,9 @@ ansible-playbook -vvvi private/hosts extra/step1.ec2_launch.yml --extra-vars "ta
 
 done
 
+echo "====================================="
+echo "Your current instances are:"
+echo ""
+grep ^host private/hosts | awk '{print $1}'
+
+echo "====================================="
