@@ -5,10 +5,10 @@
 limit=1
 # starting from what number
 start=18
+#sample hostname: host18.sitecaretaker.com
 
 
-
-######## do not modify from here
+######## do not modify anything from here
 export `cat private/awskeys.txt|grep AWS_SECRET_ACCESS_KEY`
 export `cat private/awskeys.txt|grep AWS_ACCESS_KEY_ID`
 
